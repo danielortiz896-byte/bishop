@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Factor de Seguridad — Método de Bishop Simplificado</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+:root {
+  --primary: #1a3a5c;
+  --primary-light: #2563a8;
+  --accent: #e53935;
+  --green: #2e7d32;
+  --amber: #f57f17;
+  --blue: #1565c0;
+  --purple: #6a1b9a;
+  --brown: #5d4037;
+  --bg: #eef2f7;
+  --card: #ffffff;
+  --border: #d0d7e3;
+  --text: #1e293b;
+  --muted: #64748b;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+
+/* ── HEADER ── */
+.header {
+  background: linear-gradient(135deg, #0f2744 0%, #1a3a5c 50%, #2563a8 100%);
+  color: #fff; padding: 18px 30px;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.25);
+  display: flex; align-items: center; gap: 16px;
+}
+.header-icon { font-size: 2rem; }
+.header h1 { font-size: 1.35rem; font-weight: 700; }
+.header p  { font-size: 0.82rem; opacity: 0.78; margin-top: 3px; }
+.header-badge {
+  margin-left: auto; background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.3);
+  padding: 4px 12px; border-radius: 20px; font-size: 0.78rem;
+}
+
+/* ── LAYOUT ── */
+.main { display: grid; grid-template-columns: 300px 1fr; gap: 16px; padding: 16px 20px; max-width: 1440px; margin: 0 auto; }
+
+/* ── CARDS ── */
+.card { background: var(--card); border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.07); overflow: hidden; margin-bottom: 14px; }
+.card-header { background: var(--primary); color: #fff; padding: 10px 16px; font-size: 0.83rem; font-weight: 700; letter-spacing: 0.4px; display: flex; align-items: center; gap: 7px; }
+.card-body { padding: 16px; }
+
+/* ── INPUTS ── */
+.section-label {
+  font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 1px; color: var(--primary-light);
+  border-bottom: 2px solid var(--primary-light);
+  padding-bottom: 3px; margin: 14px 0 10px;
+}
+.input-group { margin-bottom: 11px; }
+.input-group label { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.78rem; color: var(--muted); margin-bottom: 4px; }
+.input-group label span { font-size: 0.7rem; color: var(--primary-light); font-weight: 700; }
+.input-row { display: flex; align-items: center; gap: 7px; }
+input[type=range] { flex: 1; height: 4px; cursor: pointer; accent-color: var(--primary-light); }
+input[type=number] {
+  width: 72px; padding: 4px 7px; border: 1px solid var(--border);
+  border-radius: 6px; font-size: 0.82rem; text-align: right;
+  color: var(--primary); font-weight: 600; transition: border-color 0.2s;
+}
+input[type=number]:focus { outline: none; border-color: var(--primary-light); }
+.reset-btn {
+  width: 100%; margin-top: 14px; padding: 9px;
+  background: var(--primary); color: #fff;
+  border: none; border-radius: 8px; cursor: pointer;
+  font-size: 0.85rem; font-weight: 600; letter-spacing: 0.3px; transition: background 0.2s;
+}
+.reset-btn:hover { background: var(--primary-light); }
+
+/* ── ITER BADGE ── */
+.iter-badge {
+  display: inline-block; background: #e3f0ff; color: var(--primary);
+  border: 1px solid #b3cef5; border-radius: 20px;
+  padding: 2px 10px; font-size: 0.72rem; font-weight: 700; margin-left: 8px;
+}
+
+/* ── FS RESULT ── */
+.fs-card { display: grid; grid-template-columns: 160px 1fr; gap: 16px; align-items: center; }
+.fs-box { text-align: center; padding: 18px 10px; border-radius: 10px; transition: all 0.35s; }
+.fs-value { font-size: 3.2rem; font-weight: 900; line-height: 1; }
+.fs-label { font-size: 0.72rem; font-weight: 700; letter-spacing: 1px; margin-top: 5px; opacity: 0.85; }
+.fs-stable   { background: #e8f5e9; color: #1b5e20; }
+.fs-marginal { background: #fff8e1; color: #e65100; }
+.fs-critical { background: #ffebee; color: #b71c1c; }
+
+.formula-box {
+  background: #f1f5fb; border-left: 4px solid var(--primary-light);
+  padding: 12px 14px; border-radius: 0 8px 8px 0;
+  font-family: 'Times New Roman', serif; font-size: 0.95rem; line-height: 2.4;
+}
+.formula-fraction { display: inline-block; text-align: center; vertical-align: middle; }
+.formula-fraction .num { border-bottom: 1.5px solid #333; padding: 0 4px; display: block; }
+.formula-fraction .den { padding: 0 4px; display: block; }
+.fs-interp { font-size: 0.78rem; color: var(--muted); background: #f8f9fa; border-radius: 6px; padding: 8px 10px; margin-top: 10px; }
+
+/* ── ITER TABLE ── */
+.iter-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; margin-top: 6px; }
+.iter-table th { background: var(--primary); color: #fff; padding: 5px 8px; text-align: center; font-size: 0.72rem; }
+.iter-table td { padding: 5px 8px; text-align: center; border-bottom: 1px solid #f0f0f0; }
+.iter-table tr.converged td { background: #e8f5e9; font-weight: 700; color: #1b5e20; }
+.iter-table tr:hover td { background: #f5f8ff; }
+
+/* ── CALC TABLE ── */
+.calc-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.calc-table tr { border-bottom: 1px solid #f0f0f0; }
+.calc-table tr:last-child { border-bottom: none; background: #f1f5fb; font-weight: 700; }
+.calc-table td { padding: 6px 8px; }
+.calc-table td:first-child { color: var(--muted); }
+.calc-table td:nth-child(2) { font-family: monospace; font-size: 0.75rem; color: #888; }
+.calc-table td:last-child { text-align: right; font-weight: 600; color: var(--primary); }
+.calc-sep td { background: #f0f4f8 !important; font-size: 0.68rem; font-weight: 700 !important;
+  text-transform: uppercase; letter-spacing: 0.8px; color: var(--primary-light) !important; padding: 4px 8px !important; }
+
+/* ── CHARTS ── */
+.charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+/* ── CANVAS ── */
+#schemeCanvas { width: 100%; display: block; border-radius: 6px; }
+
+/* ── FOOTER ── */
+footer { text-align: center; padding: 12px; color: var(--muted); font-size: 0.75rem; border-top: 1px solid var(--border); margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-icon">🔄</div>
+  <div>
+    <h1>Análisis de Estabilidad de Taludes</h1>
+    <p>Método de Bishop Simplificado · Falla rotacional circular · Solución iterativa</p>
+  </div>
+  <div class="header-badge">FS = Bishop Simplificado</div>
+</div>
+
+<div class="main">
+
+  <!-- ════ LEFT: INPUTS ════ -->
+  <div>
+    <div class="card">
+      <div class="card-header">⚙️ Variables del Análisis</div>
+      <div class="card-body">
+
+        <div class="section-label">Geometría de la dovela</div>
+
+        <div class="input-group">
+          <label>Ancho de la dovela (b) <span>m</span></label>
+          <div class="input-row">
+            <input type="range" id="b_r" min="0.5" max="10" step="0.1" value="3" oninput="sync('b',this.value)">
+            <input type="number" id="b" value="3" step="0.1" min="0.5" max="10" oninput="syncR('b',this.value);compute()">
+          </div>
+        </div>
+
+        <div class="input-group">
+          <label>Altura de la dovela (h) <span>m</span></label>
+          <div class="input-row">
+            <input type="range" id="h_r" min="0.3" max="15" step="0.1" value="1.5" oninput="sync('h',this.value)">
+            <input type="number" id="h" value="1.5" step="0.1" min="0.3" max="15" oninput="syncR('h',this.value);compute()">
+          </div>
+        </div>
+
+        <div class="input-group">
+          <label>Ángulo de la base (α) <span>°</span></label>
+          <div class="input-row">
+            <input type="range" id="alpha_r" min="-30" max="60" step="0.01" value="14.18" oninput="sync('alpha',this.value)">
+            <input type="number" id="alpha" value="14.18" step="0.01" min="-30" max="60" oninput="syncR('alpha',this.value);compute()">
+          </div>
+        </div>
+
+        <div class="section-label">Propiedades del suelo</div>
+
+        <div class="input-group">
+          <label>Peso unitario (γ) <span>kN/m³</span></label>
+          <div class="input-row">
+            <input type="range" id="gamma_r" min="14" max="24" step="0.001" value="18.933" oninput="sync('gamma',this.value)">
+            <input type="number" id="gamma" value="18.933" step="0.001" min="14" max="24" oninput="syncR('gamma',this.value);compute()">
+          </div>
+        </div>
+
+        <div class="input-group">
+          <label>Cohesión efectiva (c') <span>kPa</span></label>
+          <div class="input-row">
+            <input type="range" id="c_r" min="0" max="80" step="0.1" value="10" oninput="sync('c',this.value)">
+            <input type="number" id="c" value="10" step="0.1" min="0" max="80" oninput="syncR('c',this.value);compute()">
+          </div>
+        </div>
+
+        <div class="input-group">
+          <label>Ángulo de fricción (φ') <span>°</span></label>
+          <div class="input-row">
+            <input type="range" id="phi_r" min="5" max="50" step="0.01" value="35" oninput="sync('phi',this.value)">
+            <input type="number" id="phi" value="35" step="0.01" min="5" max="50" oninput="syncR('phi',this.value);compute()">
+          </div>
+        </div>
+
+        <div class="section-label">Condición hidrológica</div>
+
+        <div class="input-group">
+          <label>Presión de poros (u) <span>kPa</span></label>
+          <div class="input-row">
+            <input type="range" id="u_r" min="0" max="80" step="0.1" value="19.62" oninput="sync('u',this.value)">
+            <input type="number" id="u" value="19.62" step="0.1" min="0" max="80" oninput="syncR('u',this.value);compute()">
+          </div>
+        </div>
+
+        <button class="reset-btn" onclick="resetAll()">↺ Restaurar valores originales</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ RIGHT: RESULTS ════ -->
+  <div>
+
+    <!-- FS RESULT -->
+    <div class="card">
+      <div class="card-header">📊 Factor de Seguridad — Resultado</div>
+      <div class="card-body">
+        <div class="fs-card">
+          <div id="fsBox" class="fs-box fs-marginal">
+            <div class="fs-value" id="fsVal">—</div>
+            <div class="fs-label" id="fsLabel">—</div>
+          </div>
+          <div>
+            <div class="formula-box">
+              <strong>FS</strong> =
+              <span class="formula-fraction">
+                <span class="num">
+                  <span class="formula-fraction" style="vertical-align:middle;">
+                    <span class="num" style="font-size:0.85em;">[c'b + (W − ub) tan φ'] · sec α</span>
+                    <span class="den" style="font-size:0.85em;">1 + <sup>tan φ' · tan α</sup>/<sub>FS</sub></span>
+                  </span>
+                </span>
+                <span class="den">W · sin α</span>
+              </span>
+            </div>
+            <div class="fs-interp" id="fsInterp">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ITERACIÓN -->
+    <div class="card">
+      <div class="card-header">
+        🔁 Proceso Iterativo de Convergencia
+        <span class="iter-badge" id="iterBadge">— iteraciones</span>
+      </div>
+      <div class="card-body" style="padding:10px 14px;">
+        <table class="iter-table">
+          <thead>
+            <tr>
+              <th>Iteración</th>
+              <th>FS supuesto</th>
+              <th>mα</th>
+              <th>Numerador (kN)</th>
+              <th>Denominador (kN)</th>
+              <th>FS calculado</th>
+              <th>|ΔFS|</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody id="iterTbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- CÁLCULOS INTERMEDIOS -->
+    <div class="card">
+      <div class="card-header">🔢 Cálculos Intermedios Paso a Paso</div>
+      <div class="card-body" style="padding:10px 14px;">
+        <table class="calc-table"><tbody id="calcTbody"></tbody></table>
+      </div>
+    </div>
+
+    <!-- ESQUEMA GRÁFICO -->
+    <div class="card">
+      <div class="card-header">📐 Esquema — Fuerzas en la Dovela (Bishop Simplificado)</div>
+      <div class="card-body" style="padding:10px;">
+        <canvas id="schemeCanvas" height="440"></canvas>
+      </div>
+    </div>
+
+    <!-- GRÁFICAS DE SENSIBILIDAD -->
+    <div class="charts-grid">
+      <div class="card">
+        <div class="card-header">📈 Sensibilidad: FS vs u (presión de poros)</div>
+        <div class="card-body" style="padding:10px 14px 14px;">
+          <canvas id="ch_u" height="190"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">📈 Sensibilidad: FS vs h (altura dovela)</div>
+        <div class="card-body" style="padding:10px 14px 14px;">
+          <canvas id="ch_h" height="190"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">📈 Sensibilidad: FS vs α (ángulo de base)</div>
+        <div class="card-body" style="padding:10px 14px 14px;">
+          <canvas id="ch_alpha" height="190"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">📈 Sensibilidad: FS vs φ' (fricción)</div>
+        <div class="card-body" style="padding:10px 14px 14px;">
+          <canvas id="ch_phi" height="190"></canvas>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end right -->
+</div><!-- end main -->
+
+<footer>
+  Análisis de Estabilidad — Método de Bishop Simplificado · Falla rotacional circular · Solución iterativa (tolerancia 0.0001)
+</footer>
+
+<script>
+// ═══════════════════════════════════════
+// VALORES POR DEFECTO
+// ═══════════════════════════════════════
+const DEFAULTS = {
+  b: 3, h: 1.5, alpha: 14.18,
+  gamma: 18.933, c: 10, phi: 35, u: 19.62
+};
+
+let charts = {};
+function rad(d){ return d * Math.PI / 180; }
+
+function getV(){
+  return {
+    b:     +document.getElementById('b').value,
+    h:     +document.getElementById('h').value,
+    alpha: +document.getElementById('alpha').value,
+    gamma: +document.getElementById('gamma').value,
+    c:     +document.getElementById('c').value,
+    phi:   +document.getElementById('phi').value,
+    u:     +document.getElementById('u').value,
+  };
+}
+
+function sync(id, val){
+  const prec = id==='gamma'?3 : (id==='phi'||id==='alpha')?2 : 1;
+  document.getElementById(id).value = parseFloat(val).toFixed(prec);
+  compute();
+}
+function syncR(id, val){
+  const r = document.getElementById(id+'_r');
+  if(r) r.value = val;
+}
+function resetAll(){
+  Object.keys(DEFAULTS).forEach(k=>{
+    const el = document.getElementById(k);   if(el) el.value = DEFAULTS[k];
+    const r  = document.getElementById(k+'_r'); if(r) r.value = DEFAULTS[k];
+  });
+  compute();
+}
+
+// ═══════════════════════════════════════
+// BISHOP SIMPLIFICADO — ITERACIÓN
+// FS = [c'b + (W − ub)·tanφ'] · secα / mα
+//      ────────────────────────────────
+//              W · sinα
+// donde mα = cosα + (tanφ'·sinα / FS)
+// ═══════════════════════════════════════
+function calcBishop(b, h, alpha, gamma, c, phi, u, maxIter=50, tol=0.0001){
+  const a  = rad(alpha);
+  const p  = rad(phi);
+  const W  = gamma * h * b;         // Peso de la dovela
+  const tanP = Math.tan(p);
+  const cosA = Math.cos(a);
+  const sinA = Math.sin(a);
+  const secA = 1 / cosA;
+
+  // Denominador (constante, no depende de FS)
+  const den = W * sinA;
+
+  // Numerador base (sin el mα)
+  const numBase = (c * b + (W - u * b) * tanP) * secA;
+
+  const iters = [];
+  let fs = 1.0;   // FS inicial
+
+  for(let i = 1; i <= maxIter; i++){
+    const ma     = cosA + (tanP * sinA / fs);   // mα
+    const fsNew  = numBase / (ma * den);
+    const delta  = Math.abs(fsNew - fs);
+    const converged = delta < tol;
+
+    iters.push({ i, fsOld: fs, ma, num: numBase, den: ma * den, fsNew, delta, converged });
+
+    fs = fsNew;
+    if(converged) break;
+  }
+
+  return { fs, W, den, numBase, iters,
+           cosA, sinA, secA, tanP,
+           ma: Math.cos(a) + (tanP * Math.sin(a) / fs) };
+}
+
+// ═══════════════════════════════════════
+// COMPUTE — actualiza toda la UI
+// ═══════════════════════════════════════
+function compute(){
+  const v = getV();
+  const r = calcBishop(v.b, v.h, v.alpha, v.gamma, v.c, v.phi, v.u);
+  const fs = r.fs;
+
+  // ── FS BOX
+  const box   = document.getElementById('fsBox');
+  const valEl = document.getElementById('fsVal');
+  const lblEl = document.getElementById('fsLabel');
+  const intEl = document.getElementById('fsInterp');
+
+  valEl.textContent = isFinite(fs) ? fs.toFixed(3) : '∞';
+  box.className = 'fs-box';
+  if(fs >= 1.5){
+    box.classList.add('fs-stable');
+    lblEl.textContent = '✅ TALUD ESTABLE';
+    intEl.textContent = `FS ≥ 1.5 → El talud presenta condiciones de estabilidad satisfactorias. No hay riesgo inminente de deslizamiento rotacional.`;
+  } else if(fs >= 1.0){
+    box.classList.add('fs-marginal');
+    lblEl.textContent = '⚠️ CONDICIÓN MARGINAL';
+    intEl.textContent = `1.0 ≤ FS < 1.5 → El talud se encuentra en condición marginal. Se recomienda monitoreo continuo y medidas de estabilización.`;
+  } else {
+    box.classList.add('fs-critical');
+    lblEl.textContent = '🔴 FALLA — INESTABLE';
+    intEl.textContent = `FS < 1.0 → El talud se encuentra en condición de falla rotacional. Las fuerzas resistentes son menores que las actuantes.`;
+  }
+
+  // ── ITERACIÓN TABLE
+  const last = r.iters[r.iters.length - 1];
+  document.getElementById('iterBadge').textContent = `${r.iters.length} iteraciones`;
+  let iHtml = '';
+  r.iters.forEach(it => {
+    const cls = it.converged ? 'class="converged"' : '';
+    const estado = it.converged ? '✔ Convergió' : '↻ Continúa';
+    iHtml += `<tr ${cls}>
+      <td>${it.i}</td>
+      <td>${it.fsOld.toFixed(5)}</td>
+      <td>${it.ma.toFixed(5)}</td>
+      <td>${it.num.toFixed(4)}</td>
+      <td>${it.den.toFixed(4)}</td>
+      <td>${it.fsNew.toFixed(5)}</td>
+      <td>${it.delta.toFixed(6)}</td>
+      <td>${estado}</td>
+    </tr>`;
+  });
+  document.getElementById('iterTbody').innerHTML = iHtml;
+
+  // ── CALC TABLE
+  const W = r.W;
+  const a = rad(v.alpha);
+  const p = rad(v.phi);
+  const rows = [
+    ['sep','GEOMETRÍA Y PESO DE LA DOVELA','',''],
+    ['','Área de la dovela (A)', 'b × h', `${(v.b*v.h).toFixed(3)} m²`],
+    ['','Peso de la dovela (W)', 'γ · b · h', `${W.toFixed(4)} kN/m`],
+    ['sep','FUNCIONES TRIGONOMÉTRICAS','',''],
+    ['','cos α',  `cos(${v.alpha}°)`, `${r.cosA.toFixed(5)}`],
+    ['','sin α',  `sin(${v.alpha}°)`, `${r.sinA.toFixed(5)}`],
+    ['','sec α',  `1 / cos α`,         `${r.secA.toFixed(5)}`],
+    ['','tan φ\'', `tan(${v.phi}°)`,   `${r.tanP.toFixed(5)}`],
+    ['sep','TÉRMINOS DE LA FÓRMULA','',''],
+    ['','c\'·b',           `${v.c} × ${v.b}`,          `${(v.c*v.b).toFixed(3)} kN/m`],
+    ['','u·b',             `${v.u} × ${v.b}`,          `${(v.u*v.b).toFixed(3)} kN/m`],
+    ['','W − u·b',         `${W.toFixed(3)} − ${(v.u*v.b).toFixed(3)}`, `${(W - v.u*v.b).toFixed(3)} kN/m`],
+    ['','(W − u·b)·tan φ\'', `(W−ub)·tanφ'`,           `${((W-v.u*v.b)*r.tanP).toFixed(3)} kN/m`],
+    ['','c\'b + (W−ub)·tanφ\'', 'Resist. sin mα ni secα', `${(v.c*v.b + (W-v.u*v.b)*r.tanP).toFixed(3)} kN/m`],
+    ['','× sec α',         '× (1/cosα)',                `${(v.c*v.b + (W-v.u*v.b)*r.tanP)*r.secA.toFixed(3)} kN/m`],
+    ['sep','FACTOR mα (convergido)','',''],
+    ['','mα = cosα + tanφ\'·sinα/FS', `cosα + tanφ'·sinα/${fs.toFixed(3)}`, `${r.ma.toFixed(5)}`],
+    ['sep','NUMERADOR Y DENOMINADOR','',''],
+    ['','NUMERADOR', "[c'b+(W−ub)tanφ']·secα / mα", `${r.numBase.toFixed(4)} kN/m`],
+    ['','DENOMINADOR', 'W · sin α',                  `${(W*r.sinA).toFixed(4)} kN/m`],
+    ['fs','FACTOR DE SEGURIDAD (FS)', 'Numerador / Denominador', `${isFinite(fs)?fs.toFixed(4):'∞'}`],
+  ];
+
+  let html = '';
+  rows.forEach(row => {
+    if(row[0]==='sep'){
+      html += `<tr class="calc-sep"><td colspan="3">${row[1]}</td></tr>`;
+    } else if(row[0]==='fs'){
+      html += `<tr style="background:#e3f0ff;"><td><strong>${row[1]}</strong></td><td style="color:#888;font-size:0.72rem">${row[2]}</td><td style="color:#0d47a1;font-size:1rem"><strong>${row[3]}</strong></td></tr>`;
+    } else {
+      html += `<tr><td>${row[1]}</td><td style="color:#aaa;font-size:0.72rem">${row[2]}</td><td>${row[3]}</td></tr>`;
+    }
+  });
+  document.getElementById('calcTbody').innerHTML = html;
+
+  // ── DRAW SCHEME
+  drawScheme(v, r);
+
+  // ── SENSITIVITY CHARTS
+  updateCharts(v);
+}
+
+// ═══════════════════════════════════════
+// ESQUEMA GRÁFICO — CANVAS
+// ═══════════════════════════════════════
+function drawScheme(v, r){
+  const canvas = document.getElementById('schemeCanvas');
+  const W_px = canvas.offsetWidth || 700;
+  canvas.width  = W_px;
+  canvas.height = 440;
+  const ctx = canvas.getContext('2d');
+  const W = W_px, H = canvas.height;
+
+  // Background
+  const bg = ctx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#e8f0f8'); bg.addColorStop(1,'#d0dcea');
+  ctx.fillStyle = bg; ctx.fillRect(0,0,W,H);
+
+  const cx = W * 0.5;
+  const cy = H * 0.68;   // circle center (below canvas center)
+  const R  = H * 0.58;   // radius of slip circle
+
+  const fs   = r.fs;
+  const aRad = rad(v.alpha);
+
+  // ── Slip circle arc (failure surface)
+  const arcStart = Math.PI * 0.85;
+  const arcEnd   = Math.PI * 2.15;
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, arcStart, arcEnd);
+  ctx.strokeStyle = '#c00000'; ctx.lineWidth = 2.5;
+  ctx.setLineDash([10,4]); ctx.stroke(); ctx.setLineDash([]);
+
+  // ── Terrain surface (fill zone above arc = soil mass)
+  // Approximate slope surface as a flat line at the top of the arc
+  const topY = cy - R;
+  const leftX  = cx + R * Math.cos(arcStart);
+  const rightX = cx + R * Math.cos(arcEnd);
+
+  ctx.beginPath();
+  ctx.moveTo(leftX, cy + R * Math.sin(arcStart));
+  ctx.arc(cx, cy, R, arcStart, arcEnd);
+  ctx.lineTo(rightX - 20, topY + 20);
+  ctx.lineTo(leftX  + 20, topY + 20);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(180,150,100,0.30)'; ctx.fill();
+
+  // ── Terrain surface line
+  ctx.beginPath();
+  ctx.moveTo(leftX - 30, topY + 30);
+  ctx.lineTo(W * 0.15, topY + 30);
+  ctx.lineTo(W * 0.85, topY + 30 + (W*0.70)*Math.tan(aRad)*0.3);
+  ctx.lineTo(rightX + 30, topY + 30 + (W*0.70)*Math.tan(aRad)*0.3);
+  ctx.strokeStyle = '#3B2A12'; ctx.lineWidth = 2.5; ctx.stroke();
+
+  // ── DOVELA (trapezoid on the slip surface) ───────────────────────────────
+  // Place dovela near center of arc
+  const dovAngle = -Math.PI/2 + aRad * 0.5;  // angle on circle where dovela sits
+  const baseCx   = cx + R * Math.cos(dovAngle);
+  const baseCy   = cy + R * Math.sin(dovAngle);
+
+  // Base width scaled to canvas
+  const scale  = W * 0.08;   // pixels per "unit"
+  const bPx    = v.b * scale * 0.4;
+  const hPx    = v.h * scale * 0.55;
+
+  // Base direction = tangent to circle at dovAngle
+  const tangAngle = dovAngle + Math.PI/2;
+  const tx = Math.cos(tangAngle), ty = Math.sin(tangAngle);
+  const nx = Math.cos(dovAngle),  ny = Math.sin(dovAngle);   // normal (radial)
+
+  // Four corners of dovela
+  const BL = { x: baseCx - bPx/2 * tx, y: baseCy - bPx/2 * ty };
+  const BR = { x: baseCx + bPx/2 * tx, y: baseCy + bPx/2 * ty };
+  const TR = { x: BR.x - hPx * nx,     y: BR.y - hPx * ny };
+  const TL = { x: BL.x - hPx * nx,     y: BL.y - hPx * ny };
+
+  // Draw dovela fill
+  ctx.beginPath();
+  ctx.moveTo(BL.x,BL.y); ctx.lineTo(BR.x,BR.y);
+  ctx.lineTo(TR.x,TR.y); ctx.lineTo(TL.x,TL.y);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(180,140,80,0.85)'; ctx.fill();
+  ctx.strokeStyle = '#5C3A10'; ctx.lineWidth = 2; ctx.stroke();
+
+  // Dovela hatch
+  ctx.save(); ctx.clip();
+  ctx.strokeStyle = 'rgba(100,70,30,0.3)'; ctx.lineWidth = 1;
+  for(let i=-hPx; i<bPx+hPx; i+=10){
+    ctx.beginPath();
+    ctx.moveTo(BL.x + i*tx - hPx*nx, BL.y + i*ty - hPx*ny);
+    ctx.lineTo(BL.x + i*tx,          BL.y + i*ty);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // ── Label dovela
+  const midX = (BL.x+BR.x+TR.x+TL.x)/4;
+  const midY = (BL.y+BR.y+TR.y+TL.y)/4;
+  ctx.fillStyle = '#3B2A12'; ctx.font = 'bold 10px Segoe UI';
+  ctx.textAlign = 'center';
+  ctx.fillText(`b=${v.b}m`, midX, midY);
+  ctx.fillText(`h=${v.h}m`, midX, midY+13);
+
+  // ── FORCE VECTORS ────────────────────────────────────────────────────────
+  const W_kN = r.W;
+  const fScale = Math.min(hPx * 1.1, 90) / Math.max(W_kN, 1);
+
+  // — W: Weight (vertical down from centroid)
+  const wLen = Math.min(W_kN * fScale, 95);
+  arrow(ctx, midX, midY, midX, midY + wLen, '#1a3a5c', 3,
+        `W=${W_kN.toFixed(1)} kN/m`, midX+6, midY+wLen*0.55);
+
+  // — N: Normal to base (perpendicular to base = radial direction outward)
+  const N_val = (W_kN - v.u * v.b) * Math.cos(aRad);
+  const nLen  = Math.min(Math.abs(N_val) * fScale * 0.9, 85);
+  const nDirX = nx, nDirY = ny;
+  arrow(ctx, baseCx, baseCy, baseCx - nLen*nDirX, baseCy - nLen*nDirY,
+        '#1b5e20', 2.5,
+        `N'=${N_val.toFixed(1)} kN/m`, baseCx - nLen*nDirX - 55, baseCy - nLen*nDirY);
+
+  // — u: Pore pressure (opposite to N, upward from base)
+  const u_total = v.u * v.b;
+  const uLen    = Math.min(u_total * fScale * 0.75, 60);
+  arrow(ctx, baseCx, baseCy, baseCx + uLen*nDirX, baseCy + uLen*nDirY,
+        '#0d47a1', 2.5,
+        `u·b=${u_total.toFixed(1)} kN/m`, baseCx + uLen*nDirX + 4, baseCy + uLen*nDirY + 12);
+
+  // — T: Tangential (driving, along base downslope)
+  const T_val = W_kN * Math.sin(aRad);
+  const tLen  = Math.min(Math.abs(T_val) * fScale, 70);
+  arrow(ctx, baseCx, baseCy, baseCx + tLen*tx, baseCy + tLen*ty,
+        '#e53935', 2.8,
+        `T=${T_val.toFixed(1)} kN/m`, baseCx + tLen*tx + 4, baseCy + tLen*ty + 12);
+
+  // — τf: Shear resistance (opposite to T)
+  const tau_f = (v.c * v.b + (W_kN - v.u*v.b) * r.tanP) / r.ma;
+  const tfLen = Math.min(Math.abs(tau_f) * fScale, 75);
+  arrow(ctx, baseCx, baseCy, baseCx - tfLen*tx, baseCy - tfLen*ty,
+        '#6a1b9a', 2.8,
+        `τf=${tau_f.toFixed(1)} kN/m`, baseCx - tfLen*tx - 60, baseCy - tfLen*ty - 8);
+
+  // ── α angle arc on the base
+  const arcR2 = 28;
+  ctx.beginPath();
+  ctx.arc(baseCx, baseCy, arcR2, tangAngle - aRad, tangAngle);
+  ctx.strokeStyle = '#444'; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = '#333'; ctx.font = '10px Segoe UI'; ctx.textAlign = 'left';
+  ctx.fillText(`α=${v.alpha.toFixed(1)}°`, baseCx + arcR2 + 4, baseCy - 4);
+
+  // ── Circle center marker
+  ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI*2);
+  ctx.fillStyle = '#c00000'; ctx.fill();
+  ctx.fillStyle = '#c00000'; ctx.font = '10px Segoe UI';
+  ctx.textAlign = 'center';
+  ctx.fillText('O (centro)', cx, cy + 16);
+
+  // ── Radius line
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(baseCx, baseCy);
+  ctx.strokeStyle = '#c0000066'; ctx.lineWidth = 1.2; ctx.setLineDash([5,3]);
+  ctx.stroke(); ctx.setLineDash([]);
+  const rMidX=(cx+baseCx)/2, rMidY=(cy+baseCy)/2;
+  ctx.fillStyle='#c00000'; ctx.font='9px Segoe UI'; ctx.textAlign='center';
+  ctx.fillText(`R`, rMidX+8, rMidY);
+
+  // ── FS Result box
+  const fsColor = fs>=1.5?'#1b5e20':fs>=1?'#e65100':'#b71c1c';
+  const fsBg    = fs>=1.5?'#e8f5e9':fs>=1?'#fff8e1':'#ffebee';
+  roundRect(ctx, W-165, 10, 155, 80, 8);
+  ctx.fillStyle = '#1a3a5c'; ctx.fill();
+  ctx.strokeStyle = '#0d2035'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Segoe UI'; ctx.textAlign='center';
+  ctx.fillText('FACTOR DE SEGURIDAD', W-87, 30);
+  ctx.fillStyle = '#FFD700'; ctx.font = 'bold 26px Segoe UI';
+  ctx.fillText(isFinite(fs)?fs.toFixed(3):'∞', W-87, 62);
+  const fsLabel = fs>=1.5?'ESTABLE':fs>=1?'MARGINAL':'INESTABLE';
+  roundRect(ctx, W-148, 68, 122, 18, 4);
+  ctx.fillStyle = fsBg; ctx.fill();
+  ctx.fillStyle = fsColor; ctx.font='bold 10px Segoe UI'; ctx.textAlign='center';
+  ctx.fillText(fsLabel, W-87, 81);
+
+  // ── Iteration info
+  const lastIter = r.iters[r.iters.length-1];
+  ctx.fillStyle='rgba(26,58,92,0.85)'; ctx.font='10px Segoe UI'; ctx.textAlign='left';
+  ctx.fillText(`Bishop Simplificado · α=${v.alpha.toFixed(2)}° · φ'=${v.phi.toFixed(2)}° · c'=${v.c} kPa · u=${v.u} kPa`, 10, H-20);
+  ctx.fillText(`Convergencia: ${r.iters.length} iter. · |ΔFS|=${lastIter.delta.toFixed(6)}`, 10, H-7);
+
+  // ── LEGEND
+  const legItems = [
+    {c:'#1a3a5c', t:'W — Peso de la dovela'},
+    {c:'#1b5e20', t:"N' — Fuerza normal efectiva"},
+    {c:'#0d47a1', t:'u·b — Presión de poros total'},
+    {c:'#e53935', t:'T — Fuerza tangencial activa'},
+    {c:'#6a1b9a', t:'τf — Resistencia al corte'},
+  ];
+  roundRect(ctx, 8, 8, 222, legItems.length*18+14, 6);
+  ctx.fillStyle='rgba(255,255,255,0.93)'; ctx.fill();
+  ctx.strokeStyle='#cdd'; ctx.lineWidth=1; ctx.stroke();
+  legItems.forEach((it,i)=>{
+    const ry = 22 + i*18;
+    ctx.strokeStyle=it.c; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.moveTo(14,ry-3); ctx.lineTo(30,ry-3); ctx.stroke();
+    ctx.fillStyle=it.c;
+    ctx.beginPath(); ctx.moveTo(30,ry-3); ctx.lineTo(24,ry-6); ctx.lineTo(24,ry); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#222'; ctx.font='10px Segoe UI'; ctx.textAlign='left';
+    ctx.fillText(it.t, 34, ry+1);
+  });
+}
+
+// ── Arrow helper
+function arrow(ctx, x1,y1, x2,y2, color, lw, label, lx, ly){
+  const dx=x2-x1, dy=y2-y1;
+  const angle=Math.atan2(dy,dx);
+  const hl=13, hw2=6;
+  ctx.save();
+  ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=lw; ctx.lineCap='round';
+  ctx.beginPath();
+  ctx.moveTo(x1,y1);
+  ctx.lineTo(x2-(hl-1)*Math.cos(angle), y2-(hl-1)*Math.sin(angle));
+  ctx.stroke();
+  ctx.save(); ctx.translate(x2,y2); ctx.rotate(angle);
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-hl,hw2); ctx.lineTo(-hl,-hw2); ctx.closePath(); ctx.fill();
+  ctx.restore();
+  if(label){
+    ctx.font='bold 11px Segoe UI'; ctx.fillStyle=color; ctx.textAlign='left';
+    ctx.fillText(label, lx, ly);
+  }
+  ctx.restore();
+}
+
+// ── RoundRect helper
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y);
+  ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r);
+  ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h);
+  ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r);
+  ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.closePath();
+}
+
+// ═══════════════════════════════════════
+// SENSITIVITY CHARTS
+// ═══════════════════════════════════════
+function fsFor(v){ return calcBishop(v.b,v.h,v.alpha,v.gamma,v.c,v.phi,v.u).fs; }
+
+function buildSeries(base, key, minV, maxV, steps){
+  const labels=[], data=[];
+  for(let i=0;i<=steps;i++){
+    const val = minV + i*(maxV-minV)/steps;
+    labels.push(val.toFixed(2));
+    const vv={...base,[key]:val};
+    const fs=fsFor(vv);
+    data.push(isFinite(fs)?Math.max(-0.5,Math.min(6,fs)):null);
+  }
+  return {labels,data};
+}
+
+function makeChart(id, key, minV, maxV, xlabel, color, base){
+  const {labels,data} = buildSeries(base, key, minV, maxV, 60);
+  const ci = Math.round((base[key]-minV)/(maxV-minV)*60);
+  const currentFS = fsFor(base);
+  if(charts[id]) charts[id].destroy();
+  const ctx2 = document.getElementById(id).getContext('2d');
+  charts[id] = new Chart(ctx2, {
+    type:'line',
+    data:{
+      labels,
+      datasets:[
+        { label:'FS', data, borderColor:color, backgroundColor:color+'18', fill:true, tension:0.35, pointRadius:0, borderWidth:2.5 },
+        { label:'Valor actual', data:[...Array(ci).fill(null), currentFS, ...Array(60-ci).fill(null)],
+          pointRadius:6, pointBackgroundColor:'#fff', pointBorderColor:color,
+          pointBorderWidth:2.5, showLine:false, borderWidth:0 }
+      ]
+    },
+    options:{
+      responsive:true, animation:{duration:300},
+      plugins:{
+        legend:{display:false},
+        tooltip:{ callbacks:{
+          label: c3=>`FS = ${c3.parsed.y?.toFixed(3)??"—"}`,
+          title: c3=>`${xlabel} = ${c3[0].label}`
+        }}
+      },
+      scales:{
+        x:{ title:{display:true,text:xlabel,font:{size:10},color:'#546e7a'}, ticks:{maxTicksLimit:7,font:{size:9},color:'#78909c'} },
+        y:{ title:{display:true,text:'FS',font:{size:10},color:'#546e7a'}, min:0, max:5,
+            ticks:{font:{size:9},color:'#78909c'}, grid:{color:'rgba(0,0,0,0.06)'} }
+      }
+    },
+    plugins:[{
+      id:'refLines',
+      afterDraw(chart){
+        const {ctx:c, chartArea:{left,right}, scales:{y}} = chart;
+        [{ v:1.0, col:'#e53935', lbl:'FS=1.0'}, {v:1.5, col:'#2e7d32', lbl:'FS=1.5'}].forEach(l=>{
+          const yp=y.getPixelForValue(l.v);
+          c.save(); c.setLineDash([6,4]); c.strokeStyle=l.col; c.lineWidth=1.5;
+          c.beginPath(); c.moveTo(left,yp); c.lineTo(right,yp); c.stroke();
+          c.fillStyle=l.col; c.font='bold 9px Segoe UI';
+          c.fillText(l.lbl, right-42, yp-4);
+          c.setLineDash([]); c.restore();
+        });
+      }
+    }]
+  });
+}
+
+function updateCharts(v){
+  makeChart('ch_u',     'u',     0,  60,  'u (kPa)',  '#0d47a1', v);
+  makeChart('ch_h',     'h',     0.3, 10, 'h (m)',    '#5d4037', v);
+  makeChart('ch_alpha', 'alpha', -20, 50, 'α (°)',    '#e65100', v);
+  makeChart('ch_phi',   'phi',   5,  50,  "φ' (°)",   '#4a148c', v);
+}
+
+// ── INIT
+compute();
+window.addEventListener('resize', ()=>{ compute(); });
+</script>
+</body>
+</html>
